@@ -125,6 +125,14 @@ else
   sudo dseditgroup -o edit -a "$TARGET_USER" -t user "$GROUP_NAME"
 fi
 
+DEV_GROUP="_developer"
+if dseditgroup -o checkmember -m "$TARGET_USER" "$DEV_GROUP" >/dev/null 2>&1; then
+  log "'$TARGET_USER' est déjà membre de '$DEV_GROUP'."
+else
+  log "Ajout de '$TARGET_USER' au groupe '$DEV_GROUP'..."
+  sudo dseditgroup -o edit -a "$TARGET_USER" -t user "$DEV_GROUP"
+fi
+
 # ---------------------------------------------------------------------------
 # 4. Permissions partagées sur le préfixe Homebrew
 #    - groupe = brewusers
@@ -146,48 +154,41 @@ fi
 log "Terminé. Déconnectez/reconnectez '$TARGET_USER' (ou redémarrez sa session) pour que l'appartenance au groupe soit prise en compte."
 
 # ---------------------------------------------------------------------------
-# 5. Désinstallation d'applications (optionnel)
+# 5. Désinstallation d'applications ciblées
+#
+# Liste fixe : ce sont les seules applications que ce script est autorisé à
+# supprimer. Tout le reste (apps système, Office, etc.) n'est jamais
+# recherché ni touché. On ne se base pas sur Homebrew ici : sur la plupart
+# des postes, il vient tout juste d'être installé plus haut, donc ces apps
+# ont été installées autrement par les étudiants.
 # ---------------------------------------------------------------------------
-uninstall_app() {
-  local app_path="$1"
-  local app_name
+TARGET_APP_PATTERNS=(
+  "Visual Studio Code.app"
+  "Android Studio.app"
+  "Postgres.app"
+  "pgAdmin*.app"
+  "Xcode.app"
+)
+
+log "Recherche des applications ciblées (VS Code, Android Studio, Postgres, pgAdmin, Xcode)..."
+FOUND_ANY=0
+for pattern in "${TARGET_APP_PATTERNS[@]}"; do
+  app_path="$(find /Applications -maxdepth 1 -iname "$pattern" -print -quit 2>/dev/null)"
+  [[ -z "$app_path" ]] && continue
+  FOUND_ANY=1
   app_name="$(basename "$app_path" .app)"
 
-  # On ne touche qu'aux applications gérées par Homebrew (installées via un
-  # cask) : c'est le seul cas où on peut les désinstaller proprement et sans
-  # risque. Les applications système ou installées autrement (Numbers,
-  # Word, Outlook, Teams, un Firefox installé manuellement, etc.) sont
-  # ignorées, sans même poser la question.
-  local cask_name
-  cask_name="$(brew list --cask 2>/dev/null | grep -ix -- "$(echo "$app_name" | tr ' ' '-')" || true)"
-
-  if [[ -z "$cask_name" ]]; then
-    log "Non gérée par Homebrew, ignorée : $app_name"
-    return
-  fi
-
-  read -r -p "Supprimer '$app_name' (cask Homebrew '$cask_name') ? [O/n] " confirm
+  read -r -p "Supprimer '$app_name' ? [O/n] " confirm
   case "$confirm" in
-    n|N|non|Non) log "Ignoré : $app_name"; return ;;
-    *) ;;
+    n|N|non|Non) log "Ignoré : $app_name"; continue ;;
   esac
 
-  log "Désinstallation via Homebrew Cask ($cask_name)..."
-  brew uninstall --cask --zap "$cask_name"
-}
-
-log "Parcours des applications dans /Applications..."
-FOUND_ANY=0
-# La liste est lue sur le descripteur 3 (au lieu du stdin standard) pour que
-# le `read -p` de confirmation dans uninstall_app lise bien le clavier, et
-# non la ligne suivante de la liste d'applications.
-while IFS= read -r app_path <&3; do
-  FOUND_ANY=1
-  uninstall_app "$app_path"
-done 3< <(find /Applications -maxdepth 1 -name '*.app' | sort)
+  log "Suppression de $app_path..."
+  sudo rm -rf "$app_path"
+done
 
 if [[ "$FOUND_ANY" -eq 0 ]]; then
-  warn "Aucune application trouvée dans /Applications."
+  log "Aucune des applications ciblées n'est présente sur ce Mac."
 fi
 
 log "Script terminé."
