@@ -169,7 +169,10 @@ uninstall_app() {
 read -r -p $'\nVoulez-vous désinstaller des applications maintenant ? [o/N] ' DO_UNINSTALL
 case "$DO_UNINSTALL" in
   o|O|oui|Oui)
-    mapfile -t APPS < <(find /Applications -maxdepth 1 -name '*.app' | sort)
+    APPS=()
+    while IFS= read -r app_path; do
+      APPS+=("$app_path")
+    done < <(find /Applications -maxdepth 1 -name '*.app' | sort)
     if [[ ${#APPS[@]} -eq 0 ]]; then
       warn "Aucune application trouvée dans /Applications."
     else
