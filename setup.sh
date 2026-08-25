@@ -175,10 +175,13 @@ uninstall_app() {
 
 log "Parcours des applications dans /Applications..."
 FOUND_ANY=0
-while IFS= read -r app_path; do
+# La liste est lue sur le descripteur 3 (au lieu du stdin standard) pour que
+# le `read -p` de confirmation dans uninstall_app lise bien le clavier, et
+# non la ligne suivante de la liste d'applications.
+while IFS= read -r app_path <&3; do
   FOUND_ANY=1
   uninstall_app "$app_path"
-done < <(find /Applications -maxdepth 1 -name '*.app' | sort)
+done 3< <(find /Applications -maxdepth 1 -name '*.app' | sort)
 
 if [[ "$FOUND_ANY" -eq 0 ]]; then
   warn "Aucune application trouvée dans /Applications."
