@@ -153,24 +153,27 @@ uninstall_app() {
   local app_name
   app_name="$(basename "$app_path" .app)"
 
-  read -r -p "Supprimer '$app_name' ? [O/n] " confirm
+  # On ne touche qu'aux applications gérées par Homebrew (installées via un
+  # cask) : c'est le seul cas où on peut les désinstaller proprement et sans
+  # risque. Les applications système ou installées autrement (Numbers,
+  # Word, Outlook, Teams, un Firefox installé manuellement, etc.) sont
+  # ignorées, sans même poser la question.
+  local cask_name
+  cask_name="$(brew list --cask 2>/dev/null | grep -ix -- "$(echo "$app_name" | tr ' ' '-')" || true)"
+
+  if [[ -z "$cask_name" ]]; then
+    log "Non gérée par Homebrew, ignorée : $app_name"
+    return
+  fi
+
+  read -r -p "Supprimer '$app_name' (cask Homebrew '$cask_name') ? [O/n] " confirm
   case "$confirm" in
     n|N|non|Non) log "Ignoré : $app_name"; return ;;
     *) ;;
   esac
 
-  # Si l'app a été installée via un cask Homebrew, on laisse brew faire le
-  # ménage (fichiers de conf, LaunchAgents, etc.), sinon suppression directe.
-  local cask_name
-  cask_name="$(brew list --cask 2>/dev/null | grep -ix -- "$(echo "$app_name" | tr ' ' '-')" || true)"
-
-  if [[ -n "$cask_name" ]]; then
-    log "Désinstallation via Homebrew Cask ($cask_name)..."
-    brew uninstall --cask --zap "$cask_name"
-  else
-    log "Suppression directe de $app_path..."
-    sudo rm -rf "$app_path"
-  fi
+  log "Désinstallation via Homebrew Cask ($cask_name)..."
+  brew uninstall --cask --zap "$cask_name"
 }
 
 log "Parcours des applications dans /Applications..."
