@@ -56,26 +56,40 @@ trap cleanup EXIT
 
 # ---------------------------------------------------------------------------
 # 1. Installation de Homebrew
+#
+# On détecte une installation existante en regardant directement le disque
+# (pas via `command -v brew`) : si un autre utilisateur (ex. un étudiant) a
+# installé Homebrew sous son propre compte, le binaire n'est pas forcément
+# dans le PATH de la session admin actuelle, mais /opt/homebrew existe déjà.
+# Se fier uniquement au PATH mènerait à relancer l'installeur, qui peut
+# échouer faute de droits d'écriture sur des fichiers appartenant à cet
+# autre utilisateur — exactement le problème que ce script corrige.
 # ---------------------------------------------------------------------------
-if command -v brew >/dev/null 2>&1; then
-  log "Homebrew est déjà installé ($(brew --version | head -n1))."
+detect_brew_prefix() {
+  local p
+  for p in /opt/homebrew /usr/local; do
+    if [[ -x "$p/bin/brew" ]]; then
+      printf '%s' "$p"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if BREW_PREFIX="$(detect_brew_prefix)"; then
+  log "Homebrew déjà présent dans $BREW_PREFIX (pas de réinstallation)."
 else
-  log "Installation de Homebrew..."
+  log "Aucune installation Homebrew détectée. Installation..."
   NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  if ! BREW_PREFIX="$(detect_brew_prefix)"; then
+    err "L'installation de Homebrew semble avoir échoué (binaire introuvable)."
+    exit 1
+  fi
 fi
+log "Préfixe Homebrew : $BREW_PREFIX"
 
-# Détermine le préfixe (Apple Silicon vs Intel)
-if [[ -d /opt/homebrew ]]; then
-  BREW_PREFIX="/opt/homebrew"
-elif [[ -d /usr/local/Homebrew ]]; then
-  BREW_PREFIX="/usr/local"
-else
-  err "Impossible de localiser l'installation Homebrew."
-  exit 1
-fi
-log "Préfixe Homebrew détecté : $BREW_PREFIX"
-
-# S'assure que brew est dans le PATH de cette session
+# S'assure que brew est dans le PATH de cette session (pour les étapes
+# suivantes, notamment la détection des casks lors de la désinstallation)
 if ! command -v brew >/dev/null 2>&1; then
   eval "$("$BREW_PREFIX"/bin/brew shellenv)"
 fi
