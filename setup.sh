@@ -153,10 +153,10 @@ uninstall_app() {
   local app_name
   app_name="$(basename "$app_path" .app)"
 
-  read -r -p "Supprimer '$app_name' ? [o/N] " confirm
+  read -r -p "Supprimer '$app_name' ? [O/n] " confirm
   case "$confirm" in
-    o|O|oui|Oui) ;;
-    *) log "Ignoré : $app_name"; return ;;
+    n|N|non|Non) log "Ignoré : $app_name"; return ;;
+    *) ;;
   esac
 
   # Si l'app a été installée via un cask Homebrew, on laisse brew faire le
@@ -173,37 +173,15 @@ uninstall_app() {
   fi
 }
 
-read -r -p $'\nVoulez-vous désinstaller des applications maintenant ? [o/N] ' DO_UNINSTALL
-case "$DO_UNINSTALL" in
-  o|O|oui|Oui)
-    APPS=()
-    while IFS= read -r app_path; do
-      APPS+=("$app_path")
-    done < <(find /Applications -maxdepth 1 -name '*.app' | sort)
-    if [[ ${#APPS[@]} -eq 0 ]]; then
-      warn "Aucune application trouvée dans /Applications."
-    else
-      log "Applications installées :"
-      for i in "${!APPS[@]}"; do
-        printf '  [%d] %s\n' "$((i+1))" "$(basename "${APPS[$i]}" .app)"
-      done
-      read -r -p "Numéros à supprimer (ex: 1 3 5), vide pour annuler: " -a SELECTION
-      if [[ ${#SELECTION[@]} -eq 0 ]]; then
-        log "Aucune sélection, désinstallation annulée."
-      else
-        for idx in "${SELECTION[@]}"; do
-          if [[ "$idx" =~ ^[0-9]+$ ]] && (( idx >= 1 && idx <= ${#APPS[@]} )); then
-            uninstall_app "${APPS[$((idx-1))]}"
-          else
-            warn "Sélection ignorée : $idx"
-          fi
-        done
-      fi
-    fi
-    ;;
-  *)
-    log "Aucune désinstallation demandée."
-    ;;
-esac
+log "Parcours des applications dans /Applications..."
+FOUND_ANY=0
+while IFS= read -r app_path; do
+  FOUND_ANY=1
+  uninstall_app "$app_path"
+done < <(find /Applications -maxdepth 1 -name '*.app' | sort)
+
+if [[ "$FOUND_ANY" -eq 0 ]]; then
+  warn "Aucune application trouvée dans /Applications."
+fi
 
 log "Script terminé."
