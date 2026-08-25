@@ -167,10 +167,9 @@ TARGET_APP_PATTERNS=(
   "Android Studio.app"
   "Postgres.app"
   "pgAdmin*.app"
-  "Xcode.app"
 )
 
-log "Recherche des applications ciblées (VS Code, Android Studio, Postgres, pgAdmin, Xcode)..."
+log "Recherche des applications ciblées (VS Code, Android Studio, Postgres, pgAdmin)..."
 FOUND_ANY=0
 for pattern in "${TARGET_APP_PATTERNS[@]}"; do
   app_path="$(find /Applications -maxdepth 1 -iname "$pattern" -print -quit 2>/dev/null)"
