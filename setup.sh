@@ -131,10 +131,17 @@ fi
 #    - g+rwX  = lecture/écriture/traverse pour le groupe
 #    - g+s sur les dossiers = les nouveaux fichiers héritent du groupe
 # ---------------------------------------------------------------------------
-log "Application des permissions partagées sur $BREW_PREFIX (peut prendre un moment)..."
-sudo chgrp -R "$GROUP_NAME" "$BREW_PREFIX"
-sudo chmod -R g+rwX "$BREW_PREFIX"
-sudo find "$BREW_PREFIX" -type d -exec chmod g+s {} +
+CURRENT_GROUP="$(stat -f '%Sg' "$BREW_PREFIX")"
+CURRENT_PERMS="$(stat -f '%Sp' "$BREW_PREFIX")"
+
+if [[ "$CURRENT_GROUP" == "$GROUP_NAME" && "$CURRENT_PERMS" == d?????s??? ]]; then
+  log "Permissions déjà correctes sur $BREW_PREFIX (groupe '$GROUP_NAME', setgid actif), on passe."
+else
+  log "Application des permissions partagées sur $BREW_PREFIX (peut prendre un moment)..."
+  sudo chgrp -R "$GROUP_NAME" "$BREW_PREFIX"
+  sudo chmod -R g+rwX "$BREW_PREFIX"
+  sudo find "$BREW_PREFIX" -type d -exec chmod g+s {} +
+fi
 
 log "Terminé. Déconnectez/reconnectez '$TARGET_USER' (ou redémarrez sa session) pour que l'appartenance au groupe soit prise en compte."
 
@@ -181,13 +188,17 @@ case "$DO_UNINSTALL" in
         printf '  [%d] %s\n' "$((i+1))" "$(basename "${APPS[$i]}" .app)"
       done
       read -r -p "Numéros à supprimer (ex: 1 3 5), vide pour annuler: " -a SELECTION
-      for idx in "${SELECTION[@]}"; do
-        if [[ "$idx" =~ ^[0-9]+$ ]] && (( idx >= 1 && idx <= ${#APPS[@]} )); then
-          uninstall_app "${APPS[$((idx-1))]}"
-        else
-          warn "Sélection ignorée : $idx"
-        fi
-      done
+      if [[ ${#SELECTION[@]} -eq 0 ]]; then
+        log "Aucune sélection, désinstallation annulée."
+      else
+        for idx in "${SELECTION[@]}"; do
+          if [[ "$idx" =~ ^[0-9]+$ ]] && (( idx >= 1 && idx <= ${#APPS[@]} )); then
+            uninstall_app "${APPS[$((idx-1))]}"
+          else
+            warn "Sélection ignorée : $idx"
+          fi
+        done
+      fi
     fi
     ;;
   *)
